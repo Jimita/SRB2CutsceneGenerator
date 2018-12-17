@@ -13,27 +13,34 @@
 			"x": 0,
 			"y": 0,
 			"title": "Scene",
-			"default": "intro2",
+			"default": "eggsatellite2",
 			"options": {
-				"intro1": {
+				"none": {
+					"x": 400,
+					"y": 0,
+					"w": 1,
+					"h": 1
+				},
+
+				"eggsatellite1": {
 					"x": 0,
 					"y": 41,
 					"w": 640,
 					"h": 256
 				},
-				"intro2": {
+				"eggsatellite2": {
 					"x": 0,
 					"y": 297,
 					"w": 640,
 					"h": 256
 				},
-				"intro3": {
+				"space": {
 					"x": 0,
 					"y": 553,
 					"w": 640,
 					"h": 256
 				},
-				"intro4": {
+				"eggrock": {
 					"x": 0,
 					"y": 850,
 					"w": 640,
@@ -52,7 +59,7 @@
 					"w": 640,
 					"h": 256
 				},
-				"intro6": {
+				"eggman": {
 					"x": 640,
 					"y": 553,
 					"w": 640,
