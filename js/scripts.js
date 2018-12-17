@@ -273,24 +273,6 @@ class FontManager{
 		return out
 	}
 
-	wordwrap(maxwidth){
-
-		function splitLine(line){
-			var parts = line.split(maxwidth)
-			if(parts.length==2){
-				return [parts[0]].concat(splitLine(parts[1]))
-			}else{ // should only be 1
-				return parts
-			}
-		}
-
-		var out=[]
-		for(var line of this.lines){
-			out = out.concat(splitLine(line))
-		}
-		this.lines = out
-	}
-
 	applyMarkup(){
 		var parts = this.text.split(/\[(\/?[:_a-zA-Z0-9]*)\]/)
 		parts.unshift('/')
@@ -347,27 +329,6 @@ class FontManager{
 }
 
 
-function hideGenerators(){
-	$('a#hidelink').hide()
-	$('a#showlink').show()
-	$('#genlist').hide()
-}
-
-var week_ago = Date.now()-(7*24*3600000);
-
-for( let [gname, generator_item] of Object.entries(generators)){
-	var new_generator = false
-	if('added' in generator_item){
-		if(Date.parse(generator_item.added) > week_ago){
-			new_generator = true
-		}
-	}
-	console.log(gname,'is',new_generator)
-	$('#genlist').append($('<a class="f6 link dim ph3 pv2 mb2 dib white bg-dark-gray generator-switcher"></a>').attr("href",'#'+gname).text(generator_item.title).data('generator',gname).click(function (){
-		selectedGenerator=$(this).data('generator')
-		selectGenerator()
-	}).toggleClass('new-generator',new_generator)).append(' ')
-}
 
 function isAnyDefaultText(text){
 	for(key in generators) {
@@ -569,9 +530,6 @@ function renderText(scaled = true){
 	}
 
 	var fontManager = new FontManager(context, rawtext, fonts)
-	if('wrap-width' in fontInfo && $('#wordwrap').prop('checked')){
-		fontManager.wordwrap(fontInfo['wrap-width'])
-	}
 	var justify = first(fontInfo.justify, 'left')
 
 	var textbox={
@@ -637,19 +595,6 @@ function renderText(scaled = true){
 
 	drawOverlays('pre-border')
 
-	if('border' in fontInfo) {
-		var bw=outputSize.w,bh=outputSize.h
-		var border_x = first(fontInfo.border.x, 0)
-		var border_y = first(fontInfo.border.y, 0)
-		if('hooks' in fontInfo && 'border' in fontInfo['hooks']){
-			// EVAL IS SAFE CODE, YES?
-			eval(fontInfo['hooks']['border'])
-		}
-		buildBorder(fontImage,fontInfo,bw,bh)
-		var bordercanvas = document.querySelector('canvas#border')
-		context.drawImage(bordercanvas,0,0,bw,bh,border_x*scale,border_y*scale,bw*scale, bh*scale)
-	}
-
 	if('hooks' in fontInfo && 'pre-overlays' in fontInfo['hooks']){
 		// EVAL IS SAFE CODE, YES?
 		eval(fontInfo['hooks']['pre-overlays'])
@@ -675,66 +620,6 @@ function renderText(scaled = true){
 }
 
 
-
-function buildBorder(fontImage,fontInfo,w,h){
-
-	function drawBorderPiece(x,y,piece){
-		bctx.drawImage(fontImage,piece.x,piece.y,piece.w,piece.h,x,y,piece.w,piece.h)
-	}
-	var bctx = document.querySelector('canvas#border').getContext('2d')
-	if(bctx.canvas.width == w && bctx.canvas.height == h){
-		return
-	}
-	bctx.canvas.width = w
-	bctx.canvas.height = h
-	var border = fontInfo.border
-	// todo: support styles other than "copy", like "stretch"
-
-	// Draw center
-	if(border.c.mode=='stretch'){
-		var piece = border.c
-		bctx.drawImage(fontImage,
-			piece.x,piece.y,piece.w,piece.h,
-			border.l.w,border.t.h,
-			w-border.l.w-border.r.w,h-border.b.h-border.t.h
-		)
-	}else{
-		for(var x=border.l.w;x<w-border.r.w;x+=border.c.w){
-			for(var y=border.t.h;y<h-border.b.h;y+=border.c.h){
-				drawBorderPiece(x,y,border.c)
-			}
-		}
-	}
-
-	// Draw top-center edge
-	for(var x=border.tl.w;x<w-border.tr.w;x+=border.t.w){
-		drawBorderPiece(x,0,border.t)
-	}
-	// Draw bottom-center edge
-	for(var x=border.bl.w;x<w-border.br.w;x+=border.b.w){
-		drawBorderPiece(x,h-border.b.h,border.b)
-	}
-	// Draw left edge
-	for(var y=border.tl.h;y<h-border.bl.h;y+=border.l.h){
-		drawBorderPiece(0,y,border.l)
-	}
-	// Draw right edge
-	for(var y=border.tr.h;y<h-border.br.h;y+=border.r.h){
-		drawBorderPiece(w-border.r.w,y,border.r)
-	}
-
-	// Top-Left corner
-	drawBorderPiece(0,0,border.tl)
-	// Top-Right corner
-	drawBorderPiece(w-border.tr.w,0,border.tr)
-
-	// Bottom-Left corner
-	drawBorderPiece(0,h-border.bl.h,border.bl)
-
-	// Bottom-Right corner
-	drawBorderPiece(w-border.br.w,h-border.br.h,fontInfo.border.br)
-
-}
 
 function resetOverlays(){
 	overlayOverrides = {}
@@ -804,7 +689,6 @@ function loadJSONForGenerator(){
 		resetOverlays()
 		$('.wordwrap').toggle('wrap-width' in fontInfo)
 		renderText()
-		$('#makegif').toggle(!!fontInfo.gif)
 		if(fontInfo.script){
 			$.getScript(gamesPath + selectedGenerator + ".js");
 		}
@@ -815,15 +699,13 @@ function loadJSONForGenerator(){
 function getNameForCurrentImage(ext){
 	var text = document.querySelector("textarea#sourcetext").value
 	text = text.replace(/\n/g," ").replace(/[^-._a-zA-Z0-9 ]/g,"")
-	return selectedGenerator + "-" + text + "." + ext
+	return "SRB2TextGen" + "-" + text + "." + ext
 }
 
 
 selectGenerator()
 $('#sourcetext').keyup(renderText)
 $(window).resize(function () { renderText() });
-
-$('.wordwrap').change(renderText)
 
 
 function getDataURLImage(){
@@ -873,24 +755,6 @@ $('a#upload').click(function(){
 			$('#uploading').text('Error uploading to imgur!')
 		}
 	});
-	return false
-})
-
-$('#makegif').click(function(){
-	this.href = makeGIF(context)
-	this.download = getNameForCurrentImage("gif")
-	return true
-})
-
-$('a#showlink').click(function(){
-	$(this).hide()
-	$('a#hidelink').show()
-	$('#genlist').show()
-	return false
-})
-
-$('a#hidelink').click(function(){
-	hideGenerators()
 	return false
 })
 
