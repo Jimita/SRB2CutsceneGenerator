@@ -177,6 +177,139 @@
 					"y": 41,
 					"w": 640,
 					"h": 400
+				},
+
+				"sugoi_sonic1": {
+					"x": 640,
+					"y": 1064,
+					"w": 640,
+					"h": 400
+				},
+				"sugoi_sonic2": {
+					"x": 1280,
+					"y": 1064,
+					"w": 640,
+					"h": 400
+				},
+				"sugoi_sonic3": {
+					"x": 1920,
+					"y": 1064,
+					"w": 640,
+					"h": 400
+				},
+				"sugoi_knuckles": {
+					"x": 0,
+					"y": 1064,
+					"w": 640,
+					"h": 400
+				},
+
+				"sugoi_animeeyessonic": {
+					"x": 2560,
+					"y": 1064,
+					"w": 640,
+					"h": 400
+				},
+				"sugoi_becomeanime": {
+					"x": 3200,
+					"y": 1064,
+					"w": 640,
+					"h": 256
+				},
+
+				"subarashii_intro": {
+					"x": 0,
+					"y": 1464,
+					"w": 640,
+					"h": 400
+				},
+				"subarashii_shadowrealm": {
+					"x": 640,
+					"y": 1464,
+					"w": 640,
+					"h": 400
+				},
+				"subarashii_shadowhimself": {
+					"x": 1280,
+					"y": 1464,
+					"w": 640,
+					"h": 400
+				},
+
+				"subarashii_eggman1": {
+					"x": 1920,
+					"y": 1464,
+					"w": 640,
+					"h": 400
+				},
+				"subarashii_eggman2": {
+					"x": 2560,
+					"y": 1464,
+					"w": 640,
+					"h": 400
+				},
+				"subarashii_finaltower": {
+					"x": 3200,
+					"y": 1464,
+					"w": 640,
+					"h": 400
+				},
+
+				"subarashii_sonic1": {
+					"x": 3840,
+					"y": 1464,
+					"w": 640,
+					"h": 400
+				},
+				"subarashii_sonic2": {
+					"x": 640,
+					"y": 1864,
+					"w": 640,
+					"h": 400
+				},
+
+				"subarashii_shadowok": {
+					"x": 4480,
+					"y": 1464,
+					"w": 640,
+					"h": 400
+				},
+				"subarashii_oldmanknuckles": {
+					"x": 0,
+					"y": 1864,
+					"w": 640,
+					"h": 400
+				},
+				"subarashii_josephjoestar": {
+					"x": 0,
+					"y": 2264,
+					"w": 640,
+					"h": 400
+				},
+
+				"subarashii_sonicsad": {
+					"x": 1920,
+					"y": 1864,
+					"w": 640,
+					"h": 400
+				},
+				"subarashii_sonichom": {
+					"x": 3840,
+					"y": 1864,
+					"w": 640,
+					"h": 400
+				},
+				"subarashii_gameoverhom": {
+					"x": 2560,
+					"y": 1864,
+					"w": 640,
+					"h": 400
+				},
+				"subarashii_shadgasp": {
+					"x": 4480,
+					"y": 1864,
+					"w": 640,
+					"h": 400
 				}
 			}
 		}
