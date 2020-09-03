@@ -870,7 +870,14 @@ function getDataURLImage(){
 	// generate an unscaled version
 	renderText(false)
 	return context.canvas.toDataURL('image/png')
+}
 
+function base64ImageConvert(image)
+{
+	var b64 = '';
+	for (var i = 0; i < image.length; i++)
+		b64 += String.fromCharCode(image[i]);
+	return btoa(b64);
 }
 
 $('#save').click(function(){
@@ -879,7 +886,7 @@ $('#save').click(function(){
 	return true
 })
 $('a#upload').click(function(){
-	var imgdata = btoa(String.fromCharCode.apply(null, makeGIF(context)));
+	var imgdata = base64ImageConvert(makeGIF(context));
 	$(this).hide()
 	$('#throbber').show()
 	$('#uploading').text('Uploading...').show()
