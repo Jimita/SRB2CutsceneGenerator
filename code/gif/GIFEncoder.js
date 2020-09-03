@@ -641,6 +641,18 @@ GIFEncoder = function() {
 		var top    = ((firstchg_b < 0 && lastchg_t >= 0) ? lastchg_t : firstchg_b);
 		var bottom = ((firstchg_t < 0 && lastchg_b >= 0) ? lastchg_b : firstchg_t) + 1;
 
+		// Lactozilla: Swap the bottom with the top if it is the top
+		if (top > bottom)
+		{
+			var swap = top;
+			top = bottom;
+			bottom = swap;
+
+			// Also adjust the rows
+			top--;
+			bottom++;
+		}
+
 		framex = lmpix;
 		framey = top;
 		framewidth = rmpix + 1;
