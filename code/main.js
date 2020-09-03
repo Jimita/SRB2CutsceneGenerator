@@ -1,29 +1,40 @@
-var canvas = document.querySelector('canvas#death')
+var canvas = document.querySelector('canvas#game')
 var context = canvas.getContext('2d')
-var baseImage = null
 var fontImage = null
 var fontInfo = null
 var overlayNames = null
-var overlayOverrides = null
 var selectedGenerator = 'srb2'
-var glitch = false
+var assetsPath = 'assets/'
+var maxCharDelay = 35-1 // TICRATE-1
+var introLineSpacing = 12
 
-function applyHashChange(){
-	selectedGenerator = window.location.hash.substr(1)
-	if(selectedGenerator.startsWith('-')){
-		selectedGenerator = selectedGenerator.substr(1)
-		glitch=true
-	}else{
-		glitch=false
-	}
-	selectGenerator()
+var renderedTypewriter
+var lastTextDelay, lastTextSpeed
+var cutsceneDelay, cutsceneSpeed
+var currentDelayIndex, currentSpeedIndex
+
+function initTypewriter()
+{
+	renderedTypewriter = 0
+	lastTextDelay = null
+	lastTextSpeed = null
+	cutsceneDelay = []
+	cutsceneSpeed = []
+	currentDelayIndex = 0
+	currentSpeedIndex = 0
 }
 
-if(window.location.hash.length > 0){
-	applyHashChange()
+initTypewriter()
+
+function isCharSpeedChange(char)
+{
+	return (char >= 0xA0 && char <= 0xAF)
 }
 
-window.addEventListener("hashchange", applyHashChange,false)
+function isCharDelayChange(char)
+{
+	return (char >= 0xB0 && char <= (0xB0+maxCharDelay))
+}
 
 function first(){
 	for(var i=0;i<arguments.length;i++){
@@ -75,38 +86,6 @@ class LineGroup{
 		return this.snippets.length == 0
 	}
 
-	split(maxwidth){
-		if(this.getWidth()>maxwidth){
-			var x=0;
-			var out=[]
-			var first=this.firstLine
-			for(var snippet of this.snippets){
-				var w=snippet.getWidth()
-				if(x+w>maxwidth){
-					var parts = snippet.split(maxwidth-x)
-					for(var p of parts){
-						var lg = new LineGroup(first)
-						first=false
-						lg.add(p)
-						out.push(lg)
-					}
-					// TODO: rest of snippets?
-					return out
-				}else{
-					x+=w
-					var lg = new LineGroup(first)
-					lg.add(snippet)
-					out.add(snippet)
-					first=false
-				}
-			}
-			return out
-		}else{
-			return [this]
-		}
-
-	}
-
 	draw(context, scale, xStart, y){
 		var x = xStart
 		for(let snippet of this.snippets){
@@ -122,37 +101,22 @@ class Snippet{
 		this.text = text
 	}
 
-	split(maxwidth){
-		var chars = this.parse()
-		function widthSoFar(bk){
-			var w=0
-			for(var i=0;i<bk;i++){
-				w+=chars[i].w
-			}
-			return w
+	setDelay(char) {
+		if (!cutsceneDelay[currentDelayIndex])
+		{
+			lastTextDelay = char.delay
+			cutsceneDelay[currentDelayIndex] = true
 		}
-		var lb = new LineBreak(this.text)
-		var last=null
-		var bk
-		var first=true
-		while(bk = lb.nextBreak()){
-			if(widthSoFar(bk.position)>maxwidth){
-				if(first){
-					last=bk.position
-				}
-				break
-			}
-			first=false
-			last=bk.position
+		currentDelayIndex++
+	}
+
+	setSpeed(char) {
+		if (!cutsceneSpeed[currentSpeedIndex])
+		{
+			lastTextSpeed = char.speed
+			cutsceneSpeed[currentSpeedIndex] = true
 		}
-		if(last==null){
-			// We had no break points, or our first breakpoint was over the max. So we can't split
-			return [this]
-		}else{
-			var before = new Snippet(this.font, this.text.slice(0,last))
-			var after = new Snippet(this.font, this.text.slice(last))
-			return [before, after]
-		}
+		currentSpeedIndex++
 	}
 
 	draw(context, scale, xStart, y){
@@ -164,7 +128,15 @@ class Snippet{
 				x-= char['unadvance-after'][lastchar]
 			}
 			context.drawImage(this.font.image,char.x,char.y,char.w,char.h,x*scale,y*scale,char.w*scale,char.h*scale)
-			x+=(char.w - char.unadvance)
+			if (!char.special)
+				x+=(char.w - char.unadvance)
+
+			// Lactozilla: Set cutscene delay and speed
+			if (char.delay && cutsceneDelay)
+				this.setDelay(char)
+			if (char.speed && cutsceneSpeed)
+				this.setSpeed(char)
+
 			last = char.unadvance
 			lastchar = char.char
 		}
@@ -192,15 +164,24 @@ class Snippet{
 			if(info==null){
 				info=font[font["null-character"]]
 			}
+
 			var x=first(info.x, defaultInfo.x)
-			if(glitch){
-				x*=0.95
-			}
+
+			var speed = null;
+			var delay = null;
+			if (isCharSpeedChange(c))
+				speed = (c - 0xA0);
+			else if (isCharDelayChange(c))
+				delay = (c - 0xB0);
+
 			out.push({
 				'x': x,
 				'y': first(info.y, defaultInfo.y, fontOriginY),
 				'w': first(info.w, defaultInfo.w),
 				'h': first(info.h, defaultInfo.h),
+				'speed': speed,
+				'delay': delay,
+				'special': (speed || delay),
 				'unadvance': first(info.unadvance, defaultInfo.unadvance, 0),
 				'unadvance-after': first(info['unadvance-after'],{}),
 				'char':c
@@ -214,6 +195,8 @@ class Snippet{
 		var last = 0
 		var lastchar = -1
 		for(var char of this.parse()){
+			if (char.special)
+				continue
 			last = char.unadvance
 			w += char.w - char.unadvance
 			if(lastchar in char['unadvance-after']){
@@ -274,7 +257,7 @@ class FontManager{
 	}
 
 	applyMarkup(){
-		var parts = this.text.split(/\[(\/?[:_a-zA-Z0-9]*)\]/)
+		var parts = this.text.split("^abc$") // (/\[(\/?[:_a-zA-Z0-9]*)\]/)
 		parts.unshift('/')
 		var out=[]
 		for(var i=0;i<parts.length;i+=2){
@@ -311,89 +294,38 @@ class FontManager{
 		return width
 	}
 
-	draw(mainFont, scale, originx, justify, fontOriginY){
-		var y = mainFont.y
-		if(justify=='v-center'){
-			y -= Math.floor(this.getHeight()/2)
-		}
+	draw(mainFont, scale, originx, originy, justify){
+		var y = originy
 		for(var line of this.lines){
 			var x = originx
 			if(justify == 'center'){
-				x = originx - Math.floor(line.getWidth()/2)
+				x = 160 - Math.floor(line.getWidth()/2)
 			}
 			line.draw(this.context, scale, x, y)
-			y+=line.getHeight()
+			var spacing
+			if ($('#spacing').prop('checked'))
+				spacing=introLineSpacing
+			else
+				spacing=line.getHeight()
+			y+=spacing
 		}
 	}
 
 }
 
 
-
-function isAnyDefaultText(text){
-	for(key in generators) {
-		if(generators.hasOwnProperty(key)) {
-			if(generators[key].defaulttext == text){
-				return true
-			}
-		}
-	}
-	return false
-}
+var introtext =
+`As it was about to drain the rings
+away from the planet, Sonic burst into
+the control room and for what he thought
+would be the last time,[0xB4] defeated
+Dr. Eggman.`
 
 function selectGenerator(){
-
-	var gen=generators[selectedGenerator]
-	window.location.hash=(glitch?'-':'') + selectedGenerator
-	if(gen === undefined){
-		gen={
-			title:'placeholder',
-			defaulttext: '',
-			sourceurl:'',
-			source:'UNKNOWN'
-		}
-	}
-	$('a.generator-switcher').each(function(){
-		var active = $(this).data('generator')==selectedGenerator
-		$(this)
-			.toggleClass('bg-dark-gray', !active)
-			.toggleClass('bg-gray', active);
-
-
-	})
-
-	$('.change-title').text(gen.title + " Generator");
-	$('.change-source').attr('href',gen.sourceurl).text(gen.source)
-	if(gen['contributor']){
-		if(gen['contributorurl']){
-			$('#extra-contrib').text(' and ').append(
-				$('<a>').attr('href',gen['contributorurl']).text(gen['contributor'])
-			)
-		}else{
-			$('#extra-contrib').text(' and ' + gen['contributor'])
-		}
-	}else{
-		$('#extra-contrib').text('')
-	}
-	if(gen['content-contributor']){
-		var ccontrib = gen['content-contributor']
-		if(gen['content-contributor-url']){
-			ccontrib = $('<a>').attr('href',gen['content-contributor-url']).text(ccontrib)
-		}
-		$('#content-contrib').text(' and ').append(ccontrib)
-	}else{
-		$('#content-contrib').text('')
-	}
-	if(gen['play']){
-		$('#playlink').attr('href',gen['play'])
-		$('#playlink').show()
-	}else{
-		$('#playlink').hide()
-	}
 	var sourcetext = $('#sourcetext');
 
-	if(sourcetext.text().length==0 || isAnyDefaultText(sourcetext.text())){
-		$('#sourcetext').text(gen.defaulttext)
+	if(sourcetext.text().length==0){
+		$('#sourcetext').text(introtext)
 	}
 	$('#sourcetext').scrollTop($('#sourcetext')[0].scrollHeight);
 
@@ -405,14 +337,8 @@ function selectGenerator(){
 	loadJSONForGenerator()
 	$('.source').remove();
 
-	gamesPath = 'games/' + selectedGenerator + '/'
-	baseImage = $('<img id="template" class="source" />').attr('src', gamesPath + selectedGenerator + '-blank.png').appendTo('body')[0]
-	fontImage = $('<img id="font" class="source" />').attr('src', gamesPath + selectedGenerator + '-font.png').appendTo('body')[0]
-
-	baseImage = null
+	fontImage = $('<img id="font" class="source" />').attr('src', assetsPath + 'font.png').appendTo('body')[0]
 	$('.source').waitForImages(true).done(function(){
-		baseImage=$('img#template')[0]
-		//fontImage=$('img#font')[0]
 		renderText()
 	});
 
@@ -426,22 +352,45 @@ function parseOverlays(fontInfo){
 			var oname=overlayNames[i]
 			var currentOverlay=fontInfo.overlays[oname]
 
+			var overlayPos=null
+
 			var sname = $('#overlay-'+oname+' option:selected').val()
 			var adv=currentOverlay.options[sname]
+
+			var textx = fontInfo.origin.x
+			var texty = fontInfo.origin.y
+			var offsx = 0
+			var offsy = 0
+			var wrapx = 0
+
+			if ('offsets' in currentOverlay)
+			{
+				var offsets = currentOverlay.offsets
+				if (offsets.hasOwnProperty(sname))
+					overlayPos=offsets[sname]
+			}
+
+			if (overlayPos != null)
+			{
+				textx = overlayPos.textx || textx
+				texty = overlayPos.texty || texty
+				offsx = overlayPos.offsx || 0
+				offsy = overlayPos.offsy || 0
+				wrapx = overlayPos.wrapx || 640
+			}
 
 			overlays[oname] = {
 				"name":sname,
 				"x":currentOverlay.x,
 				"y":currentOverlay.y,
-				"w":adv.w,
-				"h":adv.h,
+				"offsx":offsx,
+				"offsy":offsy,
+				"textx":textx,
+				"texty":texty,
+				"wrapx":wrapx,
 				"blend":first(currentOverlay['blend-mode'], 'source-over'),
-				"stage":first(currentOverlay.stage, "pre-text"),
+				"stage":first(currentOverlay.stage, "main"),
 				"title":first(currentOverlay.title,sname),
-				"source":{
-					"x":adv.x,
-					"y":adv.y
-				},
 				"data":adv
 			}
 
@@ -481,16 +430,74 @@ function getAllPossibleOptions(){
 	return opts;
 }
 
-function twitterifyCanvas(context){
-	var pixel = context.getImageData(0,0,1,1)
-	if(pixel.data[3]==255){
-		pixel.data[3]=254
-	}
-	context.putImageData(pixel,0,0)
+function testWhite(x) {
+	var white = new RegExp(/^\s$/);
+	return white.test(x.charAt(0));
 }
 
-function renderText(scaled = true){
-	if(fontInfo == null || baseImage == null){
+function getStringWidth(str, font)
+{
+	var length = 0
+	for (i = 0; i < str.length; i++) {
+		var info = font[str.charCodeAt(i)]
+		if (info == null)
+			info = font[font["null-character"]]
+		length += (info.w * font.fontscale * 2)
+	}
+	return length
+}
+
+function wordWrap(str, font, baseX, maxWidth) {
+	var slength = str.length
+	var length = getStringWidth(str, font)
+	var res = str
+
+	maxWidth -= (baseX * font.fontscale)
+
+	if (length < maxWidth)
+		return str
+
+	var i
+	var x = 0
+	var lastusablespace = 0
+
+	for (i = 0; i < slength; i++) {
+		var char = res.charCodeAt(i)
+
+		if (isCharSpeedChange(char) || isCharDelayChange(char))
+			continue
+
+		if (char == 10)
+		{
+			x = 0
+			lastusablespace = 0
+			continue
+		}
+
+		var info = font[char]
+		if (info == null || char == 32) {
+			info = font[font["null-character"]]
+			lastusablespace = i
+		}
+
+		x += ((info.w || 8) * font.fontscale)
+
+		if (lastusablespace != 0 && x > maxWidth) {
+			var split = res
+			res = split.slice(0, lastusablespace)
+			res += '\n'
+			res += split.slice(lastusablespace+(split.charAt(lastusablespace) == ' ' ? 1 : 0))
+			i = lastusablespace
+			lastusablespace = 0
+			x = 0
+		}
+	}
+
+	return res
+}
+
+function renderText(scaled = true, typewrite = false){
+	if(fontInfo == null){
 		return
 	}
 
@@ -515,37 +522,105 @@ function renderText(scaled = true){
 			fonts[key] = new BitmapFont(fontcopy, fontImage)
 		}
 	}
-	var originx = first(fontInfo.origin.x, 0)
 
 	var overlays = parseOverlays(fontInfo)
+	var baseoverlay = overlays[overlayNames[0]]
 
 	var rawtext = document.querySelector("textarea#sourcetext").value
 
-	function switchFont(newFont){
-		rawtext = '[' + newFont + ']' + rawtext
+	// apply text delay / speed
+	var parts = rawtext.split(/\[([!@0]\/?[:_a-zA-Z0-9]*)\]/)
+	parts.unshift('/')
+
+	var out=[]
+
+	rawtext=''
+
+	for(var i=0;i<parts.length;i+=2){
+		var marker = parts[i]
+		var text = parts[i+1]
+		//if(text!==''){ // Skip empty text segments
+
+		if(marker.startsWith('/')){
+			marker=''
+		}
+
+		var type = marker.charAt(0);
+		var isHex = false;
+
+		if (marker.slice(0, 2) == '0x')
+		{
+			num = parseInt(Number(marker), 10);
+			isHex = true;
+		}
+		else
+			num = parseInt(marker.slice(1), 10);
+
+		if (!Number.isNaN(num))
+		{
+			var charcode = 0;
+
+			function setSpeed(speed)
+			{
+				charcode = (0xA0 + Math.max(0, Math.min(speed, 16)));
+			}
+
+			function setDelay(delay)
+			{
+				charcode = (0xB0 + Math.max(0, Math.min(delay, maxCharDelay)));
+			}
+
+			if (isHex)
+			{
+				if (isCharSpeedChange(num))
+				{
+					num -= 0xA0;
+					setSpeed(num);
+				}
+				else if (isCharDelayChange(num))
+				{
+					num -= 0xB0;
+					setDelay(num);
+				}
+			}
+			else if (type == '!') // speed
+			{
+				if (num >= 0xA0)
+					num -= 0xA0;
+				setSpeed(num);
+			}
+			else if (type == '@') // speed
+			{
+				if (num >= 0xB0)
+					num -= 0xB0;
+				setDelay(num);
+			}
+
+			if (charcode)
+				rawtext += String.fromCharCode(charcode);
+		}
+
+		rawtext += text;
 	}
 
-	if('hooks' in fontInfo && 'font' in fontInfo['hooks']){
-		eval(fontInfo.hooks.font)
-	}
+	if ($('#wordwrap').prop('checked'))
+		rawtext = wordWrap(rawtext, mainFont.info, baseoverlay.textx, baseoverlay.wrapx || 640)
+
+	var baseTextLength = rawtext.length
+	if (typewrite)
+		rawtext = rawtext.slice(0, Math.min(renderedTypewriter, baseTextLength))
 
 	var fontManager = new FontManager(context, rawtext, fonts)
-	var justify = first(fontInfo.justify, 'left')
 
 	var textbox={
 		w: fontManager.getWidth(),
 		h: fontManager.getHeight()
 	}
-	if(justify == 'center-box'){
-		originx -= Math.floor(textbox.w/2)
-	}else if(justify == 'right-box'){
-		originx -= textbox.w
-	}
 
 
 	var outputSize={
-		w:baseImage.width,
-		h:baseImage.height
+		w:640,
+		h:400,
 	}
 	if('dynamic-size' in fontInfo){
 		outputSize.w = eval(fontInfo['dynamic-size'].w)
@@ -568,55 +643,78 @@ function renderText(scaled = true){
 
 	context.canvas.width = outputSize.w * scale
 	context.canvas.height = outputSize.h * scale
-	var scaleMode = first(fontInfo['scale-mode'],'auto')
-	if(scaleMode == 'nearest-neighbor' || (scaleMode == 'auto' && scale == 2.0)){
-		context.imageSmoothingEnabled = false
+	context.imageSmoothingEnabled = false
+
+	function clearCanvas(ctx)
+	{
+		ctx.clearRect(0, 0, canvas.width, canvas.height)
+		ctx.fillRect(0, 0, 640*scale, 400*scale)
+	}
+
+	function drawMainScene(adv, source, drawtext)
+	{
+		clearCanvas(context)
+
+		context.drawImage(source,
+			adv.x + (adv.offsx * scale * 2), adv.y + (adv.offsy * scale * 2),
+			source.width * scale, source.height * scale)
+
+		// draw the text
+		if (drawtext)
+		{
+			var x = 0
+			var y = 0
+
+			if ($('#textpos').prop('checked')) {
+				x = adv.textx
+				y = adv.texty
+			}
+
+			fontManager.draw(mainFont, realFontScale, x, y, 0)
+		}
 	}
 
 	function drawOverlays(stage){
+		var count = 0;
 		Object.keys(overlays).forEach(function (key) {
 			var adv = overlays[key]
 			if(adv.stage == stage){
 				context.globalCompositeOperation = adv.blend
-				if(key in overlayOverrides){
-					var img = overlayOverrides[key]
-					context.drawImage(img,0,0,img.width,img.height,adv.x*scale,adv.y*scale,adv.w*scale,adv.h*scale)
-				}else{
-					context.drawImage(fontImage,adv.source.x,adv.source.y,adv.w,adv.h,adv.x*scale,adv.y*scale,adv.w*scale,adv.h*scale)
+
+				if (adv.canvas == null)
+				{
+					var image = $('<img id="scene" class="sceneimage" />').attr('src', assetsPath + 'scenes/' + adv.name + '.png').appendTo('body')[0]
+
+					adv.canvas = document.getElementById("scene");
+					adv.canvas.style.display = "none";
+
+					image.addEventListener('load', e => {
+						adv.canvas.width = image.width
+						adv.canvas.height = image.height
+
+						var ctx = adv.canvas.getContext('2d')
+						clearCanvas(ctx)
+						ctx.drawImage(image, 0, 0)
+
+						drawMainScene(adv, adv.canvas, true)
+					});
+
+					$('.sceneimage').remove();
 				}
+
+				drawMainScene(adv, adv.canvas, (count + 1) == Object.keys(overlays).length);
 			}
+			count++;
 		})
 		context.globalCompositeOperation = "source-over"
 	}
 
 	// Clear before drawing, as transparents might get overdrawn
-	context.clearRect(0, 0, canvas.width, canvas.height)
-	context.drawImage(baseImage, 0, 0, baseImage.width*scale, baseImage.height*scale)
+	clearCanvas(context)
 
-	drawOverlays('pre-border')
+	drawOverlays('main')
 
-	if('hooks' in fontInfo && 'pre-overlays' in fontInfo['hooks']){
-		// EVAL IS SAFE CODE, YES?
-		eval(fontInfo['hooks']['pre-overlays'])
-	}
-
-
-	drawOverlays('pre-text')
-
-
-	var fontOriginY=0
-
-	if('hooks' in fontInfo && 'pre-text' in fontInfo['hooks']){
-		// EVAL IS SAFE CODE, YES?
-		eval(fontInfo['hooks']['pre-text'])
-	}
-	fontManager.draw(mainFont, realFontScale, originx, justify, fontOriginY)
-
-	drawOverlays('post-text')
-
-	if(first(fontInfo.twitterify, true)){
-		twitterifyCanvas(context)
-	}
+	return (typewrite && (renderedTypewriter >= baseTextLength))
 }
 
 
@@ -639,16 +737,11 @@ function resetOverlays(){
 				var select = $('<select class="overlay-selector">').attr('id','overlay-'+key)
 				for(opt in overlay.options){
 					if(overlay.options.hasOwnProperty(opt)){
-						$('<option>').text(first(overlay.options[opt].title,opt)).attr('value',opt).prop('selected',opt==overlay['default']).appendTo(select)
+						var optname = overlay.options[opt];
+						$('<option>').text(first(optname,optname)).attr('value',optname).prop('selected',optname==overlay['default']).appendTo(select)
 					}
 				}
 				select.appendTo(pwrapper)
-				if('replaceable' in overlay){
-					var uploadlabel=$(' <label>Replace image:</label>')
-					var upload=$('<input type="file" class="overlay-replacement" accept="image/*"/>').attr('id','replace-'+key)
-					upload.appendTo(uploadlabel)
-					uploadlabel.appendTo(pwrapper)
-				}
 				pwrapper.appendTo($('.overlays'))
 			}
 		}
@@ -661,51 +754,116 @@ function resetOverlays(){
 		}
 		renderText()
 	})
-	$('.overlay-replacement').change(function(){
-		// from http://jsfiddle.net/influenztial/qy7h5/
-		var name = $(this).attr('id').split('-',2)[1]
-		var reader = new FileReader();
-	    reader.onload = function(event){
-	        var img = new Image();
-	        img.onload = function(){
-	        	var overrideCanvas = $('<canvas class="source">').attr('width',img.width).attr('height',img.height).appendTo($('.overlays p'))[0]
-	        	var octx = overrideCanvas.getContext('2d')
-	        	octx.drawImage(img,0,0)
-		        overlayOverrides[name]=overrideCanvas
-			    renderText()
-	        }
-	        img.src = event.target.result;
-	    }
-	    reader.readAsDataURL(this.files[0]);
-	})
 
 }
 
 function loadJSONForGenerator(){
 
-	gamesPath = 'games/' + selectedGenerator + '/'
-	$.getJSON(gamesPath + selectedGenerator + ".json",function(data){
+	gamesPath = 'assets/'
+	$.getJSON(gamesPath + "srb2.json",function(data){
 		fontInfo = data
 		resetOverlays()
-		$('.wordwrap').toggle('wrap-width' in fontInfo)
 		renderText()
 		if(fontInfo.script){
-			$.getScript(gamesPath + selectedGenerator + ".js");
+			$.getScript(gamesPath + "srb2.js");
 		}
 	})
 
 }
 
 function getNameForCurrentImage(ext){
-	var text = document.querySelector("textarea#sourcetext").value
-	text = text.replace(/\n/g," ").replace(/[^-._a-zA-Z0-9 ]/g,"")
-	return "SRB2TextGen" + "-" + text + "." + ext
+	return "srb2cutscenegenerator" + "-" + new Date().getTime();
 }
 
 
 selectGenerator()
 $('#sourcetext').keyup(renderText)
 $(window).resize(function () { renderText() });
+
+$('.wordwrap').change(renderText)
+$('.textpos').change(renderText)
+$('.spacing').change(renderText)
+
+function makeGIF(context){
+	var numtowrite
+	var speed
+
+	function setSpeed(spd)
+	{
+		speed = spd
+		if (speed < 7)
+			numtowrite = (8 - speed)
+		else
+			numtowrite = 1
+	}
+	setSpeed(document.getElementById("textdelay").value)
+
+	var encoder = new GIFEncoder()
+	encoder.setComment(document.querySelector("textarea#sourcetext").value.slice(0, 255))
+	encoder.setPalette(srb2palette)
+	encoder.setRepeat(0)
+
+	encoder.setOptimization(speed >= 7)
+	encoder.setDownscaling($('#downscale').prop('checked') ? 2 : 1)
+
+	initTypewriter()
+	encoder.start()
+
+	renderText(false, true)
+	encoder.setDelay(500)
+	encoder.addFrame(context)
+	encoder.setDelay(33)
+
+	while(true){
+		var done = renderText(false, true)
+
+		if (lastTextSpeed)
+			setSpeed(lastTextSpeed)
+		renderedTypewriter += numtowrite
+
+		var delay = 33
+		if (lastTextDelay)
+		{
+			delay += (17 * lastTextDelay)
+			lastTextDelay = null
+		}
+
+		if (speed > 7)
+			encoder.setDelay(delay * (speed - 7))
+		else
+			encoder.setDelay(delay)
+
+		encoder.addFrame(context)
+
+		currentDelayIndex = 0
+		currentSpeedIndex = 0
+
+		if (done)
+			break
+	}
+
+	cutsceneDelay = null
+	cutsceneSpeed = null
+
+	encoder.setDelay(5000)
+	encoder.addFrame(context)
+	/* Twitter MP4 Fix:
+	   Twitter drops the last frame of MP4 files, so on desktop these will loop too fast.
+	   We don't just show the last frame twice with full length, because mobile does
+	   NOT drop the last frame, and therefore the last frame delay would be twice as long
+	   there. This gives us a very tiny difference between mobile and desktop, which should
+	   be fine. */
+	encoder.setDelay(20)
+	encoder.addFrame(context)
+	encoder.finish()
+
+	return (new Uint8Array(encoder.stream().bin))
+}
+$('#makegif').click(function(){
+	this.href = URL.createObjectURL(new Blob([makeGIF(context)], {type : "image/gif" } ))
+	this.download = getNameForCurrentImage("gif")
+	return true
+})
 
 
 function getDataURLImage(){
@@ -721,8 +879,7 @@ $('#save').click(function(){
 	return true
 })
 $('a#upload').click(function(){
-	renderText(false)
-	var imgdata = context.canvas.toDataURL('image/png').split(',',2)[1]
+	var imgdata = btoa(String.fromCharCode.apply(null, makeGIF(context)));
 	$(this).hide()
 	$('#throbber').show()
 	$('#uploading').text('Uploading...').show()
@@ -737,7 +894,7 @@ $('a#upload').click(function(){
 		data: {
 			image: imgdata,
 			type: 'base64',
-			name: 'upload.png'
+			name: 'upload.gif'
 		},
 		success: function(result) {
 			$('#throbber').hide()

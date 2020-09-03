@@ -13,47 +13,72 @@
 	<link rel="stylesheet" href="css/styles.css?v=1.0">
 
 	<!-- Jquery -->
-	<script src="js/jquery-3.2.1.min.js"></script>
-	<script src="js/jquery.waitforimages.min.js"></script>
+	<script src="code/jquery/jquery-3.2.1.min.js"></script>
+	<script src="code/jquery/jquery.waitforimages.min.js"></script>
+
+	<script type="text/javascript" src="code/gif/LZWEncoder.js"></script>
+	<script type="text/javascript" src="code/gif/GIFEncoder.js"></script>
+	<script type="text/javascript" src="code/gif/b64.js"></script>
+
+	<style>
+		#game {
+			border: 2px solid white;
+		}
+		#sourcetext {
+			float: left;
+			margin-right: 1cm;
+		}
+		#options {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: flex-start;
+		}
+		#checkboxes {
+			margin-left: 0.5cm;
+		}
+	</style>
+
 </head>
 
-<body class="w-100 sans-serif bg-white black-80 code">
-
+<body class="w-100 sans-serif bg-black white-80 code">
 	<main>
+	<div class="mw9 center ph1-ns">
+	<div class="cf ph1-ns">
+	<div class="fl w-100 w-100-ns pa4">
+		<!-- Screenshot/Canvas -->
+		<canvas id="game">No canvas!</canvas>
+		<canvas id="scene">No canvas!</canvas>
 
-		<div class="mw9 center ph1-ns">
-			<div class="cf ph1-ns">
-				<div class="fl w-100 w-100-ns pa1">
+		<!-- Customization -->
+		<p>
+			<textarea cols="35" rows="6" id="sourcetext" class="border-box hover-black measure b--black-20 pa2 mb2"></textarea>
+			<a href="#" id="save" class="white-80">Save image</a>
+			<a href="#" id="makegif" class="white-80">Save GIF</a>
+			<a href="#" id="upload" class="white-80">Upload GIF to imgur</a>
+			<img src="assets/throbber.gif" id="throbber" /><span id="uploading">dummy</span>
+		</p>
 
-						<h1 class="f3 fw6 ttu">SRB2 Cutscene Generator</h1>
-
-						<!-- Screenshot/Canvas -->
-						<canvas id="death">No canvas!</canvas>
-						<canvas id="border">No canvas!</canvas>
-
-						<!-- copyright footnote -->
-						<p>Code forked by <a href="https://twitter.com/TCLScruffy">Jimita</a> from <a href="https://github.com/foone/SierraDeathGenerator">Sierra Death Generator</a>, by <a href="https://twitter.com/Foone">@Foone</a>.
-						</p>
-						<span id="extra-contrib"></span>Sonic Robo Blast 2 assets by <a href="#" class="change-source">somebody</a><span id="content-contrib"></span>
-
-						<!-- Customization -->
-						<p>
-							<textarea cols="100" rows="6" id="sourcetext" class="border-box hover-black measure b--black-20 pa2 mb2"></textarea>
-							<a href="#" id="save"><img src="imgs/save.png" alt="Save image"/></a>
-							<a href="#" id="upload"><img src="imgs/upload.png" alt="Upload"/></a>
-							<img src="imgs/throbber.gif" id="throbber" /><span id="uploading">dummy</span>
-						</p>
-						<div class="overlays"></div>
-
-				</div>
+		<div id="options">
+			<div id="dropdowns">
+				<div class="overlays"></div>
+				<label for="textdelay">Text speed:</label>
+				<input type="number" id="textdelay" name="textdelay" min="1" max="16" value="9">
+			</div>
+			<div id="checkboxes">
+				<div class="textpos"><label><input type="checkbox" id="textpos" checked>Use text positions</label></div>
+				<div class="wordwrap"><label><input type="checkbox" id="wordwrap" checked>Automatic wordwrapping</label></div>
+				<div class="spacing"><label><input type="checkbox" id="spacing" checked>Intro line spacing</label></div>
+				<div class="downscale"><label><input type="checkbox" id="downscale" checked>Downscale GIF</label></div>
 			</div>
 		</div>
-
+	</div>
+	</div>
+	</div>
 	</main>
 
 	<!-- Other/Main Scripts after DOM load -->
-	<script src="js/generators.js"></script>
-	<script src="js/scripts.js"></script>
+	<script src="code/main.js"></script>
+	<script src="code/palette.js"></script>
 
 </body>
 
