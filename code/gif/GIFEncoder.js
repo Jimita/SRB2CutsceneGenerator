@@ -40,7 +40,7 @@ GIFEncoder = function() {
 	var exports = {};
 	var width; // image size
 	var height;
-	var framex, framey, framewidth, frameheight;
+	var framex, framey, framewidth, frameheight, framechanged;
 	var downscale = 1; // downscale amount
 	var transparent = null; // transparent color if given
 	var transIndex; // transparent index in color table
@@ -53,7 +53,7 @@ GIFEncoder = function() {
 	var lastPixels; // BGR byte array from last frame
 	var optimize = false; // frame optimization
 	var indexedPixels; // converted frame indexed to palette
-	var colorDepth; // number of bit planes
+	var colorDepth = 8; // number of bit planes
 	var colorTab; // RGB palette
 	var palSize = 7; // color table size (bits-1)
 	var dispose = -1; // disposal code (-1 = use default)
@@ -179,6 +179,7 @@ GIFEncoder = function() {
 			frameheight = height;
 			framex = 0;
 			framey = 0;
+			framechanged = true;
 
 			getImagePixels(); // convert to correct format if necessary
 
@@ -188,10 +189,11 @@ GIFEncoder = function() {
 				if (!firstFrame)
 					optimizeRegion(pixels, lastPixels);
 
-				lastPixels = [...pixels];
+				if (framechanged)
+					lastPixels = pixels.slice(0); // Lactozilla: slice is faster than the spread operator
 			}
 
-			if (downscale > 1)
+			if (framechanged && downscale > 1)
 			{
 				// Ensure our downscaled framex/y starts and ends on a pixel.
 				framex /= downscale;
@@ -381,32 +383,30 @@ GIFEncoder = function() {
 
 		var len = pixels.length;
 		var x, y;
-		indexedPixels = [];
 
 		// map image pixels to new palette
-		var srcx;
-		var srcy = 0;
+		if (framechanged)
+		{
+			indexedPixels = new Uint8Array(framewidth * frameheight);
+			var srcx;
+			var srcy = 0;
 
-		for (y = 0; y < frameheight; y++) {
-			srcx = 0;
-			for (x = 0; x < framewidth; x++) {
-				// Lactozilla
-				var top = (srcy + (framey * downscale)) * (width);
-				var left = (srcx + (framex * downscale));
-				var idx = (top * 3) + (left * 3);
-				var r = (pixels[idx    ] & 0xFF);
-				var g = (pixels[idx + 1] & 0xFF);
-				var b = (pixels[idx + 2] & 0xFF);
-				var index = findClosest(r, g, b);
-				indexedPixels[(y * framewidth) + x] = index;
-				srcx += downscale;
+			for (y = 0; y < frameheight; y++) {
+				srcx = 0;
+				for (x = 0; x < framewidth; x++) {
+					// Lactozilla
+					var top = (srcy + (framey * downscale)) * (width);
+					var left = (srcx + (framex * downscale));
+					var idx = (top * 3) + (left * 3);
+					var index = findClosest(pixels[idx], pixels[idx + 1], pixels[idx + 2]);
+					indexedPixels[(y * framewidth) + x] = index;
+					srcx += downscale;
+				}
+				srcy += downscale;
 			}
-			srcy += downscale;
 		}
-
-		pixels = null;
-		colorDepth = 8;
-		palSize = 7;
+		else
+			indexedPixels[0] = findClosest(pixels[0], pixels[1], pixels[2]);
 	};
 
 	/**
@@ -457,21 +457,24 @@ GIFEncoder = function() {
 	var getImagePixels = function getImagePixels() {
 		var w = width;
 		var h = height;
-		pixels = [];
+
 		var data = image;
+		var src = 0;
 		var count = 0;
+		var i, j;
 
-		for (var i = 0; i < h; i++) {
+		if (pixels == null)
+			pixels = new Uint8Array(w * h * 3);
 
-			for (var j = 0; j < w; j++) {
-
-				var b = (i * w * 4) + j * 4;
-				pixels[count++] = data[b];
-				pixels[count++] = data[b + 1];
-				pixels[count++] = data[b + 2];
-
+		for (i = 0; i < h; i++)
+		{
+			for (j = 0; j < w; j++)
+			{
+				pixels[count++] = data[src++];
+				pixels[count++] = data[src++];
+				pixels[count++] = data[src++];
+				src++;
 			}
-
 		}
 	};
 
@@ -631,6 +634,7 @@ GIFEncoder = function() {
 			// pixel so it contains minimal data
 			framex = framey = 0;
 			framewidth = frameheight = 1;
+			framechanged = false;
 			return;
 		}
 
