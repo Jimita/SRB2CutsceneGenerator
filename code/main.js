@@ -772,7 +772,7 @@ function loadJSONForGenerator(){
 }
 
 function getNameForCurrentImage(ext){
-	return "srb2cutscenegenerator" + "-" + new Date().getTime();
+	return "srb2cutscenegenerator" + "-" + new Date().getTime() + "." + ext;
 }
 
 
@@ -803,7 +803,7 @@ function makeGIF(context){
 	encoder.setPalette(srb2palette)
 	encoder.setRepeat(0)
 
-	encoder.setOptimization(speed >= 7)
+	encoder.setOptimization($('#optimize').prop('checked') ? (speed >= 7) : false)
 	encoder.setDownscaling($('#downscale').prop('checked') ? 2 : 1)
 
 	initTypewriter()
