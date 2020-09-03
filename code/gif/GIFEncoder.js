@@ -634,8 +634,8 @@ GIFEncoder = function() {
 			return;
 		}
 
-		var top    = ((firstchg_b < 0 && lastchg_t >= 0) ? lastchg_t : firstchg_b) + 1;
-		var bottom = (firstchg_t < 0 && lastchg_b >= 0) ? lastchg_b : firstchg_t;
+		var top    = ((firstchg_b < 0 && lastchg_t >= 0) ? lastchg_t : firstchg_b);
+		var bottom = ((firstchg_t < 0 && lastchg_b >= 0) ? lastchg_b : firstchg_t) + 1;
 
 		framex = lmpix;
 		framey = top;
